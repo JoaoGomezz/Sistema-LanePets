@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - Lane Pets</title>
+<link rel="stylesheet" href="design-system.css">
+<style>
+  .dash-status{display:none;margin-bottom:20px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-muted);font-size:.85rem}
+  .dash-status.show{display:block}
+  .dash-status.error{color:var(--danger-500)}
+  .dash-status.success{color:var(--success-500)}
+
+  .filter-card{margin-bottom:20px}
+  .filter-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr auto;gap:14px;align-items:end}
+  .quick-periods{display:flex;gap:8px;flex-wrap:wrap}
+  .quick-periods .active{background:var(--brand-500);color:#fff;border-color:var(--brand-500)}
+
+  .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:20px}
+  .kpi{position:relative;overflow:hidden}
+  .kpi-label{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-500)}
+  .kpi-value{margin-top:8px;font:800 1.55rem var(--font-display);color:var(--ink-900)}
+  .kpi-meta{margin-top:5px;font-size:.76rem;color:var(--ink-500)}
+  .kpi-dot{position:absolute;right:-22px;top:-22px;width:72px;height:72px;border-radius:50%;background:var(--brand-100)}
+
+  .finance-lock{margin-bottom:20px;border:1px solid var(--border);background:var(--surface);border-radius:var(--r-lg);padding:22px}
+  .finance-lock h2{margin:0 0 6px}
+  .finance-lock p{margin:0 0 16px;color:var(--ink-500);font-size:.84rem}
+  .finance-row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+  .finance-row .field{min-width:250px}
+  .finance-unlocked{display:none}
+  .finance-unlocked.show{display:block}
+
+  .finance-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:16px 0}
+  .finance-card .value{font:800 1.4rem var(--font-display);margin-top:6px}
+  .finance-card .label{font-size:.72rem;font-weight:800;text-transform:uppercase;color:var(--ink-500)}
+  .finance-card .meta{font-size:.74rem;color:var(--ink-500);margin-top:5px}
+
+  .section-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+  .unit-table{width:100%;border-collapse:collapse}
+  .unit-table th,.unit-table td{padding:11px 9px;border-bottom:1px solid var(--border);text-align:left;font-size:.8rem}
+  .unit-table th{font-size:.68rem;text-transform:uppercase;color:var(--ink-500)}
+  .unit-table tr:last-child td{border-bottom:0}
+  .unit-note{margin-top:12px;font-size:.74rem;color:var(--ink-500)}
+  .locked-note{padding:18px;border:1px dashed var(--border);border-radius:12px;color:var(--ink-500);font-size:.82rem}
+  .positive{color:var(--success-500);font-weight:800}
+  .negative{color:var(--danger-500);font-weight:800}
+
+  .menu-toggle{cursor:pointer}
+
+  @media(max-width:1100px){
+    .kpi-grid{grid-template-columns:repeat(3,1fr)}
+    .filter-grid{grid-template-columns:1fr 1fr}
+    .finance-grid{grid-template-columns:repeat(2,1fr)}
+  }
+  @media(max-width:700px){
+    .kpi-grid,.finance-grid,.section-grid{grid-template-columns:1fr}
+    .filter-grid{grid-template-columns:1fr}
+  }
+</style>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+</head>
+
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none"
+           stroke="#F2994A" stroke-width="1.8">
+        <circle cx="7" cy="8" r="2"/>
+        <circle cx="12" cy="5.5" r="2"/>
+        <circle cx="17" cy="8" r="2"/>
+        <path d="M12 13c-3.3 0-6 2.1-6 4.7 0 1.6 1.5 2.3 3 1.8.9-.3 1.9-.5 3-.5s2.1.2 3 .5c1.5.5 3-.2 3-1.8 0-2.6-2.7-4.7-6-4.7Z"/>
+      </svg>
+      <div>
+        <div class="brand-name">Lane Pets</div>
+        <span class="brand-sub">Franco + Caieiras</span>
+      </div>
+      <button class="sidebar-close hide-desktop" aria-label="Fechar menu">×</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="index.html">⌂ <span>Cadastro</span></a>
+      <a class="nav-item" href="clientes.html">♙ <span>Clientes</span></a>
+      <a class="nav-item" href="clientes_pacote.html">▣ <span>Pacotes</span></a>
+      <a class="nav-item" href="agendamentos.html">▦ <span>Agendamentos</span></a>
+      <a class="nav-item active" href="dashboard_financeiro.html">◫ <span>Dashboard</span></a>
+      <a class="nav-item" href="Produtos.html">◇ <span>Produtos</span></a>
+      <a class="nav-item" href="entradas_e_saidas.html">$ <span>Entradas e Saídas</span></a>
+      <a class="nav-item" href="relatorio.html">▥ <span>Relatório</span></a>
+    </nav>
+
+    <div class="sidebar-foot">Lane Pets © 2026</div>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-toggle hide-desktop" aria-label="Abrir menu">☰</button>
+        <div>
+          <div class="topbar-title">Dashboard</div>
+          <div class="topbar-breadcrumb hide-mobile">Gestão / Visão geral</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-user">
+          <div class="avatar">LP</div>
+          <span>Lane Pets</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+
+      <div class="page-header">
+        <div>
+          <h1>Dashboard</h1>
+          <p>Indicadores operacionais e área financeira protegida.</p>
+        </div>
+        <a class="btn btn-outline" href="entradas_e_saidas.html">Abrir movimentações</a>
+      </div>
+
+      <div id="dashStatus" class="dash-status" role="status" aria-live="polite"></div>
+
+      <section class="card filter-card">
+        <h2 class="section-title">Período e unidade</h2>
+
+        <div class="filter-grid">
+          <div class="field">
+            <label>Período rápido</label>
+            <div class="quick-periods">
+              <button class="btn btn-outline btn-sm" data-period="today">Hoje</button>
+              <button class="btn btn-outline btn-sm" data-period="7">7 dias</button>
+              <button class="btn btn-outline btn-sm active" data-period="month">Este mês</button>
+              <button class="btn btn-outline btn-sm" data-period="previous">Mês anterior</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="dataInicio">Data inicial</label>
+            <input class="input" type="date" id="dataInicio">
+          </div>
+
+          <div class="field">
+            <label for="dataFim">Data final</label>
+            <input class="input" type="date" id="dataFim">
+          </div>
+
+          <div class="field">
+            <label for="unidadeFiltro">Unidade</label>
+            <select class="input" id="unidadeFiltro">
+              <option value="">Todas</option>
+              <option value="Franco">Franco da Rocha</option>
+              <option value="Caieiras">Caieiras</option>
+              <option value="sem-unidade">Sem unidade / antigos</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <button class="btn btn-primary" id="atualizarDashboard">Atualizar dashboard</button>
+        </div>
+      </section>
+
+      <!-- OPERACIONAL: vem diretamente de LaneAPI.dashboard() -->
+      <div class="kpi-grid">
+        <section class="card kpi">
+          <div class="kpi-dot"></div>
+          <div class="kpi-label">Total</div>
+          <div class="kpi-value" id="kpiTotal">—</div>
+          <div class="kpi-meta">Agendamentos</div>
+        </section>
+
+        <section class="card kpi">
+          <div class="kpi-dot"></div>
+          <div class="kpi-label">Hoje</div>
+          <div class="kpi-value" id="kpiHoje">—</div>
+          <div class="kpi-meta">Na data selecionada</div>
+        </section>
+
+        <section class="card kpi">
+          <div class="kpi-dot"></div>
+          <div class="kpi-label">Pendentes</div>
+          <div class="kpi-value" id="kpiPendentes">—</div>
+          <div class="kpi-meta">Status operacional</div>
+        </section>
+
+        <section class="card kpi">
+          <div class="kpi-dot"></div>
+          <div class="kpi-label">Em andamento</div>
+          <div class="kpi-value" id="kpiAndamento">—</div>
+          <div class="kpi-meta">Status operacional</div>
+        </section>
+
+        <section class="card kpi">
+          <div class="kpi-dot"></div>
+          <div class="kpi-label">Entregues</div>
+          <div class="kpi-value" id="kpiEntregues">—</div>
+          <div class="kpi-meta">Status operacional</div>
+        </section>
+      </div>
+
+      <!-- FINANCEIRO PROTEGIDO -->
+      <section class="finance-lock" id="financeLock">
+        <h2>🔒 Área financeira</h2>
+        <p>
+          A autorização financeira é adicional à sessão administrativa.
+          Os valores financeiros só são carregados após a autorização.
+        </p>
+
+        <div class="finance-row">
+          <div class="field">
+            <label for="senhaFinanceira">Senha financeira</label>
+            <input class="input" id="senhaFinanceira" type="password"
+                   autocomplete="current-password"
+                   placeholder="Digite a senha financeira">
+          </div>
+          <button class="btn btn-primary" id="autorizarFinanceiro">
+            Autorizar acesso
+          </button>
+        </div>
+
+        <div id="financeMessage" class="unit-note"></div>
+      </section>
+
+      <section class="finance-unlocked" id="financeUnlocked">
+
+        <div class="page-header" style="margin-bottom:8px">
+          <div>
+            <h2>Financeiro</h2>
+            <p>Resumo dos lançamentos financeiros registrados na API.</p>
+          </div>
+          <button class="btn btn-outline btn-sm" id="sairFinanceiro">
+            Bloquear financeiro
+          </button>
+        </div>
+
+        <div class="finance-grid">
+          <section class="card finance-card">
+            <div class="label">Entradas</div>
+            <div class="value" id="finEntradas">R$ 0,00</div>
+            <div class="meta">Lançamentos financeiros</div>
+          </section>
+
+          <section class="card finance-card">
+            <div class="label">Saídas</div>
+            <div class="value" id="finSaidas">R$ 0,00</div>
+            <div class="meta">Despesas registradas</div>
+          </section>
+
+          <section class="card finance-card">
+            <div class="label">Saldo</div>
+            <div class="value" id="finSaldo">R$ 0,00</div>
+            <div class="meta">Entradas − saídas</div>
+          </section>
+
+          <section class="card finance-card">
+            <div class="label">Lançamentos</div>
+            <div class="value" id="finLancamentos">0</div>
+            <div class="meta">No período selecionado</div>
+          </section>
+        </div>
+
+        <div class="unit-note" id="financeSourceNote"></div>
+      </section>
+
+      <div class="section-grid">
+
+        <section class="card">
+          <h2 class="section-title">Desempenho por unidade</h2>
+
+          <div style="overflow:auto">
+            <table class="unit-table">
+              <thead>
+                <tr>
+                  <th>Unidade</th>
+                  <th>Total</th>
+                  <th>Hoje</th>
+                  <th>Pend.</th>
+                  <th>Andamento</th>
+                  <th>Entregues</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaUnidades"></tbody>
+            </table>
+          </div>
+
+          <div class="unit-note" id="notaSemUnidade"></div>
+        </section>
+
+        <section class="card">
+          <h2 class="section-title">Situação operacional</h2>
+          <div id="situacaoOperacional" class="locked-note">
+            Carregando dados da API...
+          </div>
+        </section>
+
+      </div>
+
+      <section class="card">
+        <h2 class="section-title">Regra dos dados antigos</h2>
+        <p class="unit-note">
+          Agendamentos legados sem unidade permanecem em
+          “Sem unidade / antigos”. O Dashboard não atribui Franco ou Caieiras
+          automaticamente.
+        </p>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script src="ui-kit.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+
+  let dashboardData = null;
+  let carregando = false;
+
+  function status(msg, type = '') {
+    const box = $('dashStatus');
+    box.textContent = msg;
+    box.className = 'dash-status show ' + type;
+  }
+
+  function clearStatus() {
+    $('dashStatus').className = 'dash-status';
+    $('dashStatus').textContent = '';
+  }
+
+  function brl(value) {
+    return Number(value || 0).toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    });
+  }
+
+  function today() {
+    const d = new Date();
+    return [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0')
+    ].join('-');
+  }
+
+  function localDate(d) {
+    return [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0')
+    ].join('-');
+  }
+
+  function setPeriod(period) {
+    const now = new Date();
+    let ini;
+    let fim = localDate(now);
+
+    if (period === 'today') {
+      ini = fim;
+    } else if (period === '7') {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 6);
+      ini = localDate(d);
+    } else if (period === 'previous') {
+      const dIni = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const dFim = new Date(now.getFullYear(), now.getMonth(), 0);
+      ini = localDate(dIni);
+      fim = localDate(dFim);
+    } else {
+      ini = localDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    }
+
+    $('dataInicio').value = ini;
+    $('dataFim').value = fim;
+
+    document.querySelectorAll('[data-period]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.period === period);
+    });
+  }
+
+  function unidadeSelecionada() {
+    return $('unidadeFiltro').value || '';
+  }
+
+  function renderOperacional(data) {
+    const m = data?.metrics || {};
+
+    $('kpiTotal').textContent = m.total ?? 0;
+    $('kpiHoje').textContent = m.hoje ?? 0;
+    $('kpiPendentes').textContent = m.pendentes ?? 0;
+    $('kpiAndamento').textContent = m.emAndamento ?? 0;
+    $('kpiEntregues').textContent = m.entregues ?? 0;
+
+    const unidades = data?.porUnidade || {};
+    const franco = unidades.Franco || {};
+    const caieiras = unidades.Caieiras || {};
+
+    $('tabelaUnidades').innerHTML = [
+      ['Franco da Rocha', franco],
+      ['Caieiras', caieiras]
+    ].map(([nome, item]) => `
+      <tr>
+        <td><strong>${nome}</strong></td>
+        <td>${item.total ?? 0}</td>
+        <td>${item.hoje ?? 0}</td>
+        <td>${item.pendentes ?? 0}</td>
+        <td>${item.emAndamento ?? 0}</td>
+        <td>${item.entregues ?? 0}</td>
+      </tr>
+    `).join('');
+
+    $('notaSemUnidade').textContent =
+      `${data?.semUnidade ?? 0} agendamento(s) sem unidade permanecem preservados.`;
+
+    const cancelados = m.cancelados ?? 0;
+
+    $('situacaoOperacional').innerHTML = `
+      <div><strong>${m.total ?? 0}</strong> agendamento(s) no conjunto consultado.</div>
+      <div style="margin-top:8px">
+        <strong>${m.pendentes ?? 0}</strong> pendente(s),
+        <strong>${m.emAndamento ?? 0}</strong> em andamento,
+        <strong>${m.entregues ?? 0}</strong> entregue(s).
+      </div>
+      <div style="margin-top:8px">
+        Cancelamentos: <strong>${cancelados}</strong>.
+      </div>
+    `;
+  }
+
+  async function carregarOperacional() {
+    if (carregando) return;
+
+    carregando = true;
+    status('Carregando indicadores operacionais...', '');
+
+    try {
+      const unidade = unidadeSelecionada();
+      const dataRef = $('dataInicio').value || today();
+
+      dashboardData = await LaneAPI.dashboard({
+        data: dataRef,
+        unidade
+      });
+
+      renderOperacional(dashboardData);
+      status('API conectada. Indicadores operacionais atualizados.', 'success');
+    } catch (err) {
+      console.error(err);
+      status(
+        'Não foi possível carregar o Dashboard: ' +
+        (err?.message || err),
+        'error'
+      );
+    } finally {
+      carregando = false;
+    }
+  }
+
+  async function verificarFinanceiro() {
+    try {
+      const result = await LaneAPI.financeiroStatus();
+
+      if (result?.autorizado === true || result?.financeiroAutorizado === true) {
+        mostrarFinanceiro();
+        await carregarFinanceiro();
+      } else {
+        bloquearFinanceiro();
+      }
+    } catch (err) {
+      console.error('financeiroStatus:', err);
+      bloquearFinanceiro();
+    }
+  }
+
+  function mostrarFinanceiro() {
+    $('financeLock').style.display = 'none';
+    $('financeUnlocked').classList.add('show');
+  }
+
+  function bloquearFinanceiro() {
+    $('financeLock').style.display = '';
+    $('financeUnlocked').classList.remove('show');
+  }
+
+  async function autorizarFinanceiro() {
+    const senha = $('senhaFinanceira').value.trim();
+
+    if (!senha) {
+      $('financeMessage').textContent = 'Digite a senha financeira.';
+      return;
+    }
+
+    const btn = $('autorizarFinanceiro');
+    btn.disabled = true;
+    $('financeMessage').textContent = 'Validando autorização...';
+
+    try {
+      await LaneAPI.financeiroLogin(senha);
+
+      $('senhaFinanceira').value = '';
+      $('financeMessage').textContent = '';
+
+      await verificarFinanceiro();
+
+      if ($('financeUnlocked').classList.contains('show')) {
+        status('Acesso financeiro autorizado.', 'success');
+      }
+    } catch (err) {
+      console.error(err);
+      $('financeMessage').textContent =
+        err?.message || 'Não foi possível autorizar o acesso financeiro.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function carregarFinanceiro() {
+    const de = $('dataInicio').value;
+    const ate = $('dataFim').value;
+    const unidade = unidadeSelecionada();
+
+    try {
+      const resumo = await LaneAPI.financeiroResumo({
+        de,
+        ate,
+        unidade
+      });
+
+      $('finEntradas').textContent = brl(resumo?.entradas);
+      $('finSaidas').textContent = brl(resumo?.saidas);
+      $('finSaldo').textContent = brl(resumo?.saldo);
+      $('finLancamentos').textContent = resumo?.totalLancamentos ?? 0;
+
+      const saldo = Number(resumo?.saldo || 0);
+      $('finSaldo').className =
+        'value ' + (saldo >= 0 ? 'positive' : 'negative');
+
+      $('financeSourceNote').textContent =
+        'Fonte: financeiro_resumo da API. Agendamentos pagos ainda serão integrados à camada financeira do backend, sem duplicar lançamentos existentes.';
+    } catch (err) {
+      console.error('financeiroResumo:', err);
+      $('financeSourceNote').textContent =
+        'Não foi possível carregar o resumo financeiro: ' +
+        (err?.message || err);
+    }
+  }
+
+  async function atualizarTudo() {
+    await carregarOperacional();
+
+    try {
+      const fin = await LaneAPI.financeiroStatus();
+      if (fin?.autorizado === true || fin?.financeiroAutorizado === true) {
+        await carregarFinanceiro();
+      }
+    } catch (err) {
+      console.error('Atualização financeira:', err);
+    }
+  }
+
+  document.querySelectorAll('[data-period]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      setPeriod(btn.dataset.period);
+      await atualizarTudo();
+    });
+  });
+
+  $('atualizarDashboard').addEventListener('click', atualizarTudo);
+
+  $('unidadeFiltro').addEventListener('change', atualizarTudo);
+
+  $('autorizarFinanceiro').addEventListener('click', autorizarFinanceiro);
+
+  $('senhaFinanceira').addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      autorizarFinanceiro();
+    }
+  });
+
+  $('sairFinanceiro').addEventListener('click', async () => {
+    try {
+      await LaneAPI.financeiroLogout();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      bloquearFinanceiro();
+      status('Área financeira bloqueada.', 'success');
+    }
+  });
+
+  window.LanePetsDashboard = {
+    carregar: atualizarTudo,
+    carregarOperacional,
+    carregarFinanceiro,
+    verificarFinanceiro,
+    dados: () => dashboardData
+  };
+
+  window.addEventListener('load', async () => {
+    const savedUnit =
+      sessionStorage.getItem('lanePetsDashboardUnidade');
+
+    if (savedUnit !== null) {
+      $('unidadeFiltro').value = savedUnit;
+    }
+
+    $('unidadeFiltro').addEventListener('change', () => {
+      sessionStorage.setItem(
+        'lanePetsDashboardUnidade',
+        $('unidadeFiltro').value
+      );
+    });
+
+    setPeriod('month');
+
+    try {
+      const auth = await LaneAPI.authStatus();
+
+      if (!auth?.autenticado) {
+        status(
+          'Sessão administrativa não encontrada. Faça o login ADM para acessar o Dashboard.',
+          'error'
+        );
+        return;
+      }
+
+      await carregarOperacional();
+      await verificarFinanceiro();
+
+    } catch (err) {
+      console.error('Inicialização do Dashboard:', err);
+      status(
+        'Não foi possível validar a sessão administrativa: ' +
+        (err?.message || err),
+        'error'
+      );
+    }
+  });
+})();
+</script>
+</body>
+</html>
