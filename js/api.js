@@ -230,7 +230,7 @@
   }
 
   return get('financeiro_status', {
-    financeiroToken: tokenFinanceiro
+    financeiro_token: tokenFinanceiro
   });
 }
   async function financeiroLogout() {
