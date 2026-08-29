@@ -521,36 +521,92 @@
     }
   }
 
-  async function carregarFinanceiro() {
-    const de = $('dataInicio').value;
-    const ate = $('dataFim').value;
-    const unidade = unidadeSelecionada();
+ async function carregarFinanceiro() {
+  const de = $('dataInicio').value;
+  const ate = $('dataFim').value;
+  const unidade = unidadeSelecionada();
 
-    try {
-      const resumo = await LaneAPI.financeiroResumo({
-        de,
-        ate,
-        unidade
-      });
+  try {
+    /*
+     * A API atual ainda não possui a ação financeiro_resumo.
+     *
+     * O resumo financeiro desta tela será calculado a partir
+     * dos lançamentos financeiros já existentes no frontend,
+     * sem criar uma segunda fonte de dados no backend.
+     */
+    const entradasESaidas =
+      JSON.parse(localStorage.getItem('entradasESaidas') || '[]');
 
-      $('finEntradas').textContent = brl(resumo?.entradas);
-      $('finSaidas').textContent = brl(resumo?.saidas);
-      $('finSaldo').textContent = brl(resumo?.saldo);
-      $('finLancamentos').textContent = resumo?.totalLancamentos ?? 0;
+    const dentroPeriodo = item => {
+      const data = String(item?.data || '').slice(0, 10);
 
-      const saldo = Number(resumo?.saldo || 0);
-      $('finSaldo').className =
-        'value ' + (saldo >= 0 ? 'positive' : 'negative');
+      if (!data) return false;
+      if (de && data < de) return false;
+      if (ate && data > ate) return false;
 
-      $('financeSourceNote').textContent =
-        'Fonte: financeiro_resumo da API. Agendamentos pagos ainda serão integrados à camada financeira do backend, sem duplicar lançamentos existentes.';
-    } catch (err) {
-      console.error('financeiroResumo:', err);
-      $('financeSourceNote').textContent =
-        'Não foi possível carregar o resumo financeiro: ' +
-        (err?.message || err);
-    }
+      return true;
+    };
+
+    const pertenceUnidade = item => {
+      if (unidade === 'todas') return true;
+
+      return String(
+        item?.unidade ||
+        item?.unidadeNome ||
+        ''
+      ).trim() === unidade;
+    };
+
+    const lancamentos = entradasESaidas.filter(item =>
+      dentroPeriodo(item) &&
+      pertenceUnidade(item)
+    );
+
+    const entradas = lancamentos
+      .filter(item =>
+        String(item?.tipo || '').toLowerCase() === 'entrada'
+      )
+      .reduce(
+        (total, item) => total + Number(item?.valor || 0),
+        0
+      );
+
+    const saidas = lancamentos
+      .filter(item =>
+        String(item?.tipo || '').toLowerCase() === 'saída' ||
+        String(item?.tipo || '').toLowerCase() === 'saida'
+      )
+      .reduce(
+        (total, item) => total + Number(item?.valor || 0),
+        0
+      );
+
+    const saldo = entradas - saidas;
+
+    $('finEntradas').textContent = brl(entradas);
+    $('finSaidas').textContent = brl(saidas);
+    $('finSaldo').textContent = brl(saldo);
+    $('finLancamentos').textContent = lancamentos.length;
+
+    $('finSaldo').className =
+      'value ' + (saldo >= 0 ? 'positive' : 'negative');
+
+    $('financeSourceNote').textContent =
+      'Fonte: lançamentos financeiros existentes. ' +
+      'Agendamentos pagos permanecem fora deste cálculo para evitar duplicidade.';
+  } catch (err) {
+    console.error('carregarFinanceiro:', err);
+
+    $('financeSourceNote').textContent =
+      'Não foi possível carregar o resumo financeiro: ' +
+      (err?.message || err);
+
+    $('finEntradas').textContent = brl(0);
+    $('finSaidas').textContent = brl(0);
+    $('finSaldo').textContent = brl(0);
+    $('finLancamentos').textContent = '0';
   }
+}
 
   async function atualizarTudo() {
     await carregarOperacional();
