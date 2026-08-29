@@ -268,11 +268,21 @@
   }
 
   async function financeiroResumo(params = {}) {
-    return get(
-      'financeiro_resumo',
-      params
-    );
+  const tokenFinanceiro =
+    sessionStorage.getItem('lanePetsFinanceiroToken');
+
+  if (!tokenFinanceiro) {
+    throw new Error('Autorização financeira não informada.');
   }
+
+  return get(
+    'financeiro_resumo',
+    {
+      ...params,
+      financeiro_token: tokenFinanceiro
+    }
+  );
+}
 
   /*
    * ============================================================
