@@ -2122,6 +2122,140 @@ function apiFinanceiroLogout4B_(p) {
   return { encerrado: true };
 }
 
+function apiFinanceiroListar4B_(p) {
+  const token = String(
+    p.financeiro_token ||
+    p.token_financeiro ||
+    ''
+  );
+
+  exigirAuthFinanceira4B_(token);
+
+  const sheet = requireSheet_('entradasESaidas');
+  let dados = readSheetObjects_(sheet);
+
+  const de = String(p.de || '').trim();
+  const ate = String(p.ate || '').trim();
+  const unidade = normalizarUnidadeApi_(p.unidade || '');
+
+  dados = dados.filter(function(item) {
+    const data = dataApi_(item.data);
+
+    if (de && data < de) return false;
+    if (ate && data > ate) return false;
+
+    if (
+      unidade &&
+      normalizarUnidadeApi_(item.unidade || '') !== unidade
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
+  dados = dados.map(function(item) {
+    return {
+      id: String(item.id || ''),
+      data: dataApi_(item.data),
+      descricao: String(item.descricao || ''),
+      tipo: String(item.tipo || ''),
+      valor: numeroApi_(item.valor),
+      unidade: normalizarUnidadeApi_(item.unidade || ''),
+      origem: String(item.origem || '')
+    };
+  });
+
+  dados.sort(function(a, b) {
+    return String(a.data).localeCompare(String(b.data));
+  });
+
+  const limite = Math.min(
+    Math.max(Number(p.limite || 500), 1),
+    2000
+  );
+
+  const offset = Math.max(
+    Number(p.offset || 0),
+    0
+  );
+
+  return {
+    ok: true,
+    total: dados.length,
+    offset: offset,
+    limite: limite,
+    hasMore: offset + limite < dados.length,
+    lancamentos: dados.slice(offset, offset + limite)
+  };
+}
+
+
+function apiFinanceiroResumo4B_(p) {
+  const token = String(
+    p.financeiro_token ||
+    p.token_financeiro ||
+    ''
+  );
+
+  exigirAuthFinanceira4B_(token);
+
+  const sheet = requireSheet_('entradasESaidas');
+  let dados = readSheetObjects_(sheet);
+
+  const de = String(p.de || '').trim();
+  const ate = String(p.ate || '').trim();
+  const unidade = normalizarUnidadeApi_(p.unidade || '');
+
+  dados = dados.filter(function(item) {
+    const data = dataApi_(item.data);
+
+    if (de && data < de) return false;
+    if (ate && data > ate) return false;
+
+    if (
+      unidade &&
+      normalizarUnidadeApi_(item.unidade || '') !== unidade
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
+  let entradas = 0;
+  let saidas = 0;
+
+  dados.forEach(function(item) {
+    const tipo = normalizarTextoApi_(item.tipo || '');
+    const valor = numeroApi_(item.valor);
+
+    if (tipo === 'entrada') {
+      entradas += valor;
+    }
+
+    if (
+      tipo === 'saida' ||
+      tipo === 'saída'
+    ) {
+      saidas += valor;
+    }
+  });
+
+  const saldo = entradas - saidas;
+
+  return {
+    ok: true,
+    de: de || null,
+    ate: ate || null,
+    unidade: unidade || null,
+    entradas: entradas,
+    saidas: saidas,
+    saldo: saldo,
+    totalLancamentos: dados.length
+  };
+}
+
 function respostaApi_(data) {
   return {
     ok: true,
@@ -2175,16 +2309,26 @@ function doGet(e) {
     }
 
     if (action === 'financeiro_status') {
-      payload = apiFinanceiroStatus4B_(p);
-      return respostaApi_(payload);
-    }
+  payload = apiFinanceiroStatus4B_(p);
+  return respostaApi_(payload);
+}
 
-    if (action === 'financeiro_login') {
-      throw new Error('financeiro_login deve ser realizado por POST.');
-    }
+if (action === 'financeiro_listar') {
+  payload = apiFinanceiroListar4B_(p);
+  return respostaApi_(payload);
+}
 
-    // Todas as rotas de dados do sistema exigem sessão administrativa.
-    exigirAuth4B_(String(p.token || ''), 'admin');
+if (action === 'financeiro_resumo') {
+  payload = apiFinanceiroResumo4B_(p);
+  return respostaApi_(payload);
+}
+
+if (action === 'financeiro_login') {
+  throw new Error('financeiro_login deve ser realizado por POST.');
+}
+
+// Todas as demais rotas de dados do sistema exigem sessão administrativa.
+exigirAuth4B_(String(p.token || ''), 'admin');
 
     if (action === 'dashboard' || action === 'metricas') {
       payload = apiDashboard_(p);
