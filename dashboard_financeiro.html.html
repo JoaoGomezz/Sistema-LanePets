@@ -521,78 +521,31 @@
     }
   }
 
- async function carregarFinanceiro() {
-  const de = $('dataInicio').value;
-  const ate = $('dataFim').value;
-  const unidade = unidadeSelecionada();
+  async function carregarFinanceiro() {
+    const de = $('dataInicio').value;
+    const ate = $('dataFim').value;
+    const unidade = unidadeSelecionada();
 
   try {
-    /*
-     * A API atual ainda não possui a ação financeiro_resumo.
-     *
-     * O resumo financeiro desta tela será calculado a partir
-     * dos lançamentos financeiros já existentes no frontend,
-     * sem criar uma segunda fonte de dados no backend.
-     */
-    const entradasESaidas =
-      JSON.parse(localStorage.getItem('entradasESaidas') || '[]');
+    const resumo = await LaneAPI.financeiroResumo({
+      de,
+      ate,
+      unidade: unidade === 'todas' ? '' : unidade
+    });
 
-    const dentroPeriodo = item => {
-      const data = String(item?.data || '').slice(0, 10);
+    $('finEntradas').textContent = brl(Number(resumo?.entradas || 0));
+    $('finSaidas').textContent = brl(Number(resumo?.saidas || 0));
+    $('finSaldo').textContent = brl(Number(resumo?.saldo || 0));
+    $('finLancamentos').textContent =
+      Number(resumo?.totalLancamentos || 0);
 
-      if (!data) return false;
-      if (de && data < de) return false;
-      if (ate && data > ate) return false;
-
-      return true;
-    };
-
-    const pertenceUnidade = item => {
-      if (unidade === 'todas') return true;
-
-      return String(
-        item?.unidade ||
-        item?.unidadeNome ||
-        ''
-      ).trim() === unidade;
-    };
-
-    const lancamentos = entradasESaidas.filter(item =>
-      dentroPeriodo(item) &&
-      pertenceUnidade(item)
-    );
-
-    const entradas = lancamentos
-      .filter(item =>
-        String(item?.tipo || '').toLowerCase() === 'entrada'
-      )
-      .reduce(
-        (total, item) => total + Number(item?.valor || 0),
-        0
-      );
-
-    const saidas = lancamentos
-      .filter(item =>
-        String(item?.tipo || '').toLowerCase() === 'saída' ||
-        String(item?.tipo || '').toLowerCase() === 'saida'
-      )
-      .reduce(
-        (total, item) => total + Number(item?.valor || 0),
-        0
-      );
-
-    const saldo = entradas - saidas;
-
-    $('finEntradas').textContent = brl(entradas);
-    $('finSaidas').textContent = brl(saidas);
-    $('finSaldo').textContent = brl(saldo);
-    $('finLancamentos').textContent = lancamentos.length;
+    const saldo = Number(resumo?.saldo || 0);
 
     $('finSaldo').className =
       'value ' + (saldo >= 0 ? 'positive' : 'negative');
 
     $('financeSourceNote').textContent =
-      'Fonte: lançamentos financeiros existentes. ' +
+      'Fonte: Google Sheets via API financeira. ' +
       'Agendamentos pagos permanecem fora deste cálculo para evitar duplicidade.';
   } catch (err) {
     console.error('carregarFinanceiro:', err);
