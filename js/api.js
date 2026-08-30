@@ -259,11 +259,20 @@
    * FINANCEIRO
    * ============================================================
    */
-
   async function financeiroListar(params = {}) {
+    const tokenFinanceiro =
+      sessionStorage.getItem('lanePetsFinanceiroToken');
+
+    if (!tokenFinanceiro) {
+      throw new Error('Autorização financeira não informada.');
+    }
+
     return get(
       'financeiro_listar',
-      params
+      {
+        ...params,
+        financeiro_token: tokenFinanceiro
+      }
     );
   }
 
