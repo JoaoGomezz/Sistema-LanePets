@@ -2257,11 +2257,13 @@ function apiFinanceiroResumo4B_(p) {
 }
 
 function respostaApi_(data) {
-  return {
-    ok: true,
-    data: data,
-    timestamp: new Date().toISOString()
-  };
+  return ContentService
+    .createTextOutput(JSON.stringify({
+      ok: true,
+      data: data,
+      timestamp: new Date().toISOString()
+    }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
@@ -2336,6 +2338,8 @@ exigirAuth4B_(String(p.token || ''), 'admin');
       payload = apiAgendamentos_(p);
     } else if (action === 'pets') {
       payload = apiLista_('pets', p);
+    } else if (action === 'cliente_buscar') {
+      payload = apiBuscarCliente_(p);
     } else if (action === 'clientes') {
       payload = apiLista_('clientes', p);
     } else if (action === 'servicos') {
@@ -2357,6 +2361,10 @@ function doPost(e) {
     const body = apiLerBodyPost_(e);
     const action = String(body.action || '').trim().toLowerCase();
     let payload;
+
+    // ============================================================
+    // AUTENTICAÇÃO — NÃO ALTERAR
+    // ============================================================
 
     // Autenticação não exige sessão prévia.
     if (action === 'login') {
@@ -2389,15 +2397,33 @@ function doPost(e) {
       return respostaApi_(payload);
     }
 
-    // A escrita real continua bloqueada. Os testes controlados da 4A
-    // permanecem isolados e não devem ser usados pelo frontend de produção.
-    if (action === 'teste_criar' || action === 'teste_atualizar' || action === 'teste_excluir') {
+    // ============================================================
+    // CLIENTES — ETAPA F1
+    // ============================================================
+
+    if (action === 'clientes_criar') {
+      payload = apiCriarCliente_(body);
+      return respostaApi_(payload);
+    }
+
+    // ============================================================
+    // ESCRITA CONTROLADA 4A — NÃO REMOVER
+    // ============================================================
+
+    if (
+      action === 'teste_criar' ||
+      action === 'teste_atualizar' ||
+      action === 'teste_excluir'
+    ) {
       exigirAuth4B_(String(body.token || ''), 'admin');
       payload = apiEscritaControlada_(body);
       return respostaApi_(payload);
     }
 
-    throw new Error('Ação POST não suportada nesta etapa: ' + action);
+    throw new Error(
+      'Ação POST não suportada nesta etapa: ' + action
+    );
+
   } catch (err) {
     return apiJsonErro_(err);
   }
@@ -2867,6 +2893,221 @@ function testarApiLeitura(){
     'Entregues: '+a.metrics.entregues+'\n\n'+
     'Escrita: CONTROLADA (somente teste 4A).'
   );
+}
+
+function apiBuscarCliente_(p) {
+  const token = String(p.token || '').trim();
+
+  // Mantém a mesma autenticação administrativa.
+  exigirAuth4B_(token, 'admin');
+
+  const nome = String(p.nome || '').trim();
+  const telefone = String(p.telefone || '').trim();
+
+  if (!nome && !telefone) {
+    throw new Error('Informe nome ou telefone para buscar o cliente.');
+  }
+
+  const sheet = requireSheet_('clientes');
+  const rows = readSheetObjects_(sheet);
+
+  const nomeBusca = normalizarTextoApi_(nome);
+  const telefoneBusca = String(telefone).replace(/\D/g, '');
+
+  const encontrados = rows.filter(function(cliente) {
+    const nomeCliente = normalizarTextoApi_(cliente.nome || '');
+    const telefoneCliente = String(cliente.telefone || '').replace(/\D/g, '');
+
+    const nomeConfere = nomeBusca && nomeCliente === nomeBusca;
+    const telefoneConfere =
+      telefoneBusca && telefoneCliente === telefoneBusca;
+
+    /*
+     * Regra de identificação:
+     * - Se temos nome e telefone, os dois precisam conferir.
+     * - Se só temos um dos dois, usamos o campo disponível.
+     */
+    if (nomeBusca && telefoneBusca) {
+      return nomeConfere && telefoneConfere;
+    }
+
+    if (nomeBusca) {
+      return nomeConfere;
+    }
+
+    return telefoneConfere;
+  });
+
+  return {
+    ok: true,
+    encontrado: encontrados.length > 0,
+    total: encontrados.length,
+    cliente: encontrados.length > 0 ? encontrados[0] : null
+  };
+}
+
+function apiCriarCliente_(body) {
+  // ============================================================
+  // CLIENTES — CRIAÇÃO
+  // ============================================================
+
+  const token = String(body.token || '').trim();
+
+  // ------------------------------------------------------------
+  // 1. AUTENTICAÇÃO ADMINISTRATIVA
+  // ------------------------------------------------------------
+  const sessao = exigirAuth4B_(token, 'admin');
+
+  // ------------------------------------------------------------
+  // 2. RECEBER DADOS
+  // ------------------------------------------------------------
+  const dados = body.dados || body.cliente;
+
+  if (!dados || typeof dados !== 'object' || Array.isArray(dados)) {
+    throw new Error('Dados do cliente inválidos.');
+  }
+
+  // ------------------------------------------------------------
+  // 3. NORMALIZAR CAMPOS
+  // ------------------------------------------------------------
+  const nome = String(dados.nome || '').trim();
+  const telefone = String(dados.telefone || '').trim();
+  const endereco = String(dados.endereco || '').trim();
+  const observacoes = String(dados.observacoes || '').trim();
+  const origem = String(dados.origem || 'sistema').trim();
+  const status = String(dados.status || 'ativo').trim().toLowerCase();
+
+  // ------------------------------------------------------------
+  // 4. VALIDAÇÕES
+  // ------------------------------------------------------------
+  if (!nome) {
+    throw new Error('Nome do cliente é obrigatório.');
+  }
+
+  if (status !== 'ativo' && status !== 'inativo') {
+    throw new Error('Status do cliente deve ser "ativo" ou "inativo".');
+  }
+
+  // ------------------------------------------------------------
+  // 5. LOCK DE ESCRITA
+  // ------------------------------------------------------------
+  const lock = LockService.getScriptLock();
+
+  lock.waitLock(30000);
+
+  try {
+    // ----------------------------------------------------------
+    // 6. LOCALIZAR ABA
+    // ----------------------------------------------------------
+    const sheet = requireSheet_('clientes');
+
+    // ----------------------------------------------------------
+    // 7. LER CABEÇALHOS
+    // ----------------------------------------------------------
+    const lastColumn = sheet.getLastColumn();
+
+    if (lastColumn < 1) {
+      throw new Error('A aba clientes não possui cabeçalho.');
+    }
+
+    const headers = sheet
+      .getRange(1, 1, 1, lastColumn)
+      .getValues()[0]
+      .map(function(h) {
+        return String(h).trim();
+      });
+
+    const indices = {};
+
+    headers.forEach(function(header, index) {
+      indices[header] = index;
+    });
+
+    const camposObrigatorios = [
+      'id',
+      'nome',
+      'telefone',
+      'endereco',
+      'observacoes',
+      'origem',
+      'status'
+    ];
+
+    camposObrigatorios.forEach(function(campo) {
+      if (indices[campo] === undefined) {
+        throw new Error(
+          'A aba clientes não possui a coluna obrigatória: ' + campo
+        );
+      }
+    });
+
+    // ----------------------------------------------------------
+    // 8. GERAR ID NO SERVIDOR
+    // ----------------------------------------------------------
+    const id =
+      'CLI-' +
+      Utilities.getUuid()
+        .replace(/-/g, '')
+        .substring(0, 12)
+        .toUpperCase();
+
+    // ----------------------------------------------------------
+    // 9. MONTAR LINHA
+    // ----------------------------------------------------------
+    const row = new Array(headers.length).fill('');
+
+    row[indices.id] = id;
+    row[indices.nome] = nome;
+    row[indices.telefone] = telefone;
+    row[indices.endereco] = endereco;
+    row[indices.observacoes] = observacoes;
+    row[indices.origem] = origem;
+    row[indices.status] = status;
+
+    // ----------------------------------------------------------
+    // 10. GRAVAR
+    // ----------------------------------------------------------
+    sheet
+      .getRange(sheet.getLastRow() + 1, 1, 1, row.length)
+      .setValues([row]);
+
+    SpreadsheetApp.flush();
+
+    // ----------------------------------------------------------
+    // 11. AUDITORIA
+    // ----------------------------------------------------------
+    registrarAuditoria_(
+      'CRIAR',
+      'clientes',
+      id,
+      'Cliente criado pela API. Usuário: ' +
+        String(sessao.perfil || 'admin') +
+        '.'
+    );
+
+    // ----------------------------------------------------------
+    // 12. RESPOSTA PADRONIZADA
+    // ----------------------------------------------------------
+    return {
+      ok: true,
+      data: {
+        id: id,
+        cliente: {
+          id: id,
+          nome: nome,
+          telefone: telefone,
+          endereco: endereco,
+          observacoes: observacoes,
+          origem: origem,
+          status: status
+        }
+      },
+      timestamp: new Date().toISOString()
+    };
+
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 
