@@ -295,6 +295,22 @@
 
   /*
    * ============================================================
+   * CLIENTES
+   * ============================================================
+   */
+
+  async function clientesBuscar(params = {}) {
+    return get(
+      'cliente_buscar',
+      {
+        nome: params.nome || '',
+        telefone: params.telefone || ''
+      }
+    );
+  }
+
+  /*
+   * ============================================================
    * API PÚBLICA
    * ============================================================
    */
@@ -376,12 +392,14 @@
         params || {}
       ),
 
+    clientesBuscar,
+
     clientesCriar: dados =>
       post(
-      'clientes_criar',
-    {
-      dados: dados
-    }
+        'clientes_criar',
+        {
+          dados: dados
+        }
       ),
 
     servicos: params =>
