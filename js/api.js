@@ -376,6 +376,14 @@
         params || {}
       ),
 
+    clientesCriar: dados =>
+      post(
+      'clientes_criar',
+    {
+      dados: dados
+    }
+      ),
+
     servicos: params =>
       get(
         'servicos',
