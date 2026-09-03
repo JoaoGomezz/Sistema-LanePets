@@ -346,53 +346,139 @@ function importarBackupCompleto(input) {
     document.getElementById("editAdicionaisBox").style.display = porte === "Adicional" ? "block" : "none";
   }
 
-  function cadastrarPet() {
-    const dono = document.getElementById("nomeDono").value.trim();
-    const pet = document.getElementById("nomePet").value.trim();
-    const tipo = document.getElementById("tipoPet").value;
-    const raca = document.getElementById("raca").value.trim();
-    const telefone = document.getElementById("telefone").value.trim();
-    const endereco = document.getElementById("endereco").value.trim();
+async function cadastrarPet() {
+  const dono = document.getElementById("nomeDono").value.trim();
+  const pet = document.getElementById("nomePet").value.trim();
+  const tipo = document.getElementById("tipoPet").value;
+  const raca = document.getElementById("raca").value.trim();
+  const telefone = document.getElementById("telefone").value.trim();
+  const endereco = document.getElementById("endereco").value.trim();
 
-    const adicionarSegundo = document.getElementById("adicionarSegundoPet").checked;
-    const pet2 = document.getElementById("nomePet2") ? document.getElementById("nomePet2").value.trim() : "";
-    const tipo2 = document.getElementById("tipoPet2") ? document.getElementById("tipoPet2").value : "";
-    const raca2 = document.getElementById("raca2") ? document.getElementById("raca2").value.trim() : "";
+  const adicionarSegundo = document.getElementById("adicionarSegundoPet").checked;
+  const pet2 = document.getElementById("nomePet2")
+    ? document.getElementById("nomePet2").value.trim()
+    : "";
+  const tipo2 = document.getElementById("tipoPet2")
+    ? document.getElementById("tipoPet2").value
+    : "";
+  const raca2 = document.getElementById("raca2")
+    ? document.getElementById("raca2").value.trim()
+    : "";
 
-    let ok = true;
-    if (!(dono && pet && telefone && endereco && tipo)) ok = false;
-    if (adicionarSegundo && !(pet2 && tipo2)) ok = false;
+  let ok = true;
 
-    if (ok) {
-      pets.push({ dono, pet, tipo, raca, telefone, endereco });
-      if (adicionarSegundo) {
-        pets.push({ dono, pet: pet2, tipo: tipo2, raca: raca2, telefone, endereco });
-      }
-      localStorage.setItem("pets", JSON.stringify(pets));
-      toast("Pet(s) cadastrado(s) com sucesso!", "success");
-      document.getElementById("nomeDono").value = "";
-      document.getElementById("nomePet").value = "";
-      document.getElementById("tipoPet").value = "";
-      document.getElementById("raca").value = "";
-      document.getElementById("telefone").value = "";
-      document.getElementById("endereco").value = "";
-      if (adicionarSegundo) {
-        document.getElementById("nomePet2").value = "";
-        document.getElementById("tipoPet2").value = "";
-        document.getElementById("raca2").value = "";
-        document.getElementById("adicionarSegundoPet").checked = false;
-        document.getElementById("segundoPetCampos").style.display = "none";
-      }
-    } else {
-      toast("Preencha todos os campos obrigatórios!", "error");
+  if (!(dono && pet && telefone && endereco && tipo)) {
+    ok = false;
+  }
+
+  if (adicionarSegundo && !(pet2 && tipo2)) {
+    ok = false;
+  }
+
+  if (!ok) {
+    toast("Preencha todos os campos obrigatórios!", "error");
+    return false;
+  }
+
+  try {
+    /*
+     * ETAPA C1 DA MIGRAÇÃO
+     * ---------------------
+     * Garante que o tutor seja criado na entidade CLIENTES.
+     *
+     * O cadastro do PET continua temporariamente no localStorage.
+     * Não estamos migrando pets nesta etapa.
+     */
+    const respostaCliente = await LaneAPI.clientesCriar({
+      nome: dono,
+      telefone: telefone,
+      endereco: endereco,
+      observacoes: "",
+      origem: "sistema",
+      status: "ativo"
+    });
+
+    if (!respostaCliente || respostaCliente.ok !== true) {
+      throw new Error(
+        respostaCliente && respostaCliente.error
+          ? respostaCliente.error
+          : "Não foi possível cadastrar o cliente."
+      );
     }
-    return ok;
-  }
 
-  function handleCadastrarPet() {
-    const btn = document.getElementById("btnCadastrarPet");
-    comLoading(btn, "Salvando...", () => cadastrarPet());
+    /*
+     * Mantém o comportamento atual do cadastro de pets.
+     * A migração de PETS será feita na próxima etapa.
+     */
+    pets.push({
+      dono,
+      pet,
+      tipo,
+      raca,
+      telefone,
+      endereco
+    });
+
+    if (adicionarSegundo) {
+      pets.push({
+        dono,
+        pet: pet2,
+        tipo: tipo2,
+        raca: raca2,
+        telefone,
+        endereco
+      });
+    }
+
+    localStorage.setItem("pets", JSON.stringify(pets));
+
+    toast("Cliente e pet(s) cadastrados com sucesso!", "success");
+
+    document.getElementById("nomeDono").value = "";
+    document.getElementById("nomePet").value = "";
+    document.getElementById("tipoPet").value = "";
+    document.getElementById("raca").value = "";
+    document.getElementById("telefone").value = "";
+    document.getElementById("endereco").value = "";
+
+    if (adicionarSegundo) {
+      document.getElementById("nomePet2").value = "";
+      document.getElementById("tipoPet2").value = "";
+      document.getElementById("raca2").value = "";
+      document.getElementById("adicionarSegundoPet").checked = false;
+      document.getElementById("segundoPetCampos").style.display = "none";
+    }
+
+    return true;
+
+  } catch (erro) {
+    console.error("Erro ao cadastrar cliente:", erro);
+
+    toast(
+      erro && erro.message
+        ? erro.message
+        : "Não foi possível cadastrar o cliente.",
+      "error"
+    );
+
+    return false;
   }
+}
+
+  async function handleCadastrarPet() {
+  const btn = document.getElementById("btnCadastrarPet");
+
+  btn.disabled = true;
+  const textoOriginal = btn.innerHTML;
+  btn.textContent = "Salvando...";
+
+  try {
+    await cadastrarPet();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
+  }
+}
 
   function cadastrarServico() {
     const nome = document.getElementById("nomeServico").value.trim();
