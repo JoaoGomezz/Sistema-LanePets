@@ -346,6 +346,7 @@ function importarBackupCompleto(input) {
     document.getElementById("editAdicionaisBox").style.display = porte === "Adicional" ? "block" : "none";
   }
 
+
 async function cadastrarPet() {
   const dono = document.getElementById("nomeDono").value.trim();
   const pet = document.getElementById("nomePet").value.trim();
@@ -354,13 +355,17 @@ async function cadastrarPet() {
   const telefone = document.getElementById("telefone").value.trim();
   const endereco = document.getElementById("endereco").value.trim();
 
-  const adicionarSegundo = document.getElementById("adicionarSegundoPet").checked;
+  const adicionarSegundo =
+    document.getElementById("adicionarSegundoPet").checked;
+
   const pet2 = document.getElementById("nomePet2")
     ? document.getElementById("nomePet2").value.trim()
     : "";
+
   const tipo2 = document.getElementById("tipoPet2")
     ? document.getElementById("tipoPet2").value
     : "";
+
   const raca2 = document.getElementById("raca2")
     ? document.getElementById("raca2").value.trim()
     : "";
@@ -382,34 +387,95 @@ async function cadastrarPet() {
 
   try {
     /*
-     * ETAPA C1 DA MIGRAÇÃO
-     * ---------------------
-     * Garante que o tutor seja criado na entidade CLIENTES.
+     * ============================================================
+     * ETAPA C2 DA MIGRAÇÃO
+     * ============================================================
      *
-     * O cadastro do PET continua temporariamente no localStorage.
-     * Não estamos migrando pets nesta etapa.
+     * Antes de criar um novo cliente, verifica se já existe
+     * um cliente com o mesmo nome + telefone.
+     *
+     * Se existir:
+     *   → reutiliza o cliente existente.
+     *
+     * Se não existir:
+     *   → cria um novo cliente pela API.
+     *
+     * O cadastro dos PETS continua temporariamente no localStorage.
+     * A migração de PETS será feita na próxima etapa.
      */
-    const respostaCliente = await LaneAPI.clientesCriar({
+
+    let clienteExistente = null;
+
+    const respostaBusca = await LaneAPI.clientesBuscar({
       nome: dono,
-      telefone: telefone,
-      endereco: endereco,
-      observacoes: "",
-      origem: "sistema",
-      status: "ativo"
+      telefone: telefone
     });
 
-    if (!respostaCliente || respostaCliente.ok !== true) {
-      throw new Error(
-        respostaCliente && respostaCliente.error
-          ? respostaCliente.error
-          : "Não foi possível cadastrar o cliente."
+    if (
+      respostaBusca &&
+      respostaBusca.ok === true &&
+      respostaBusca.encontrado === true &&
+      respostaBusca.cliente
+    ) {
+      clienteExistente = respostaBusca.cliente;
+
+      console.log(
+        "Cliente existente encontrado. Reutilizando:",
+        clienteExistente
       );
     }
 
     /*
-     * Mantém o comportamento atual do cadastro de pets.
-     * A migração de PETS será feita na próxima etapa.
+     * ============================================================
+     * CRIA CLIENTE SOMENTE SE NÃO EXISTIR
+     * ============================================================
      */
+
+    if (!clienteExistente) {
+      const respostaCliente = await LaneAPI.clientesCriar({
+        nome: dono,
+        telefone: telefone,
+        endereco: endereco,
+        observacoes: "",
+        origem: "sistema",
+        status: "ativo"
+      });
+
+      if (!respostaCliente || respostaCliente.ok !== true) {
+        throw new Error(
+          respostaCliente && respostaCliente.error
+            ? respostaCliente.error
+            : "Não foi possível cadastrar o cliente."
+        );
+      }
+
+      /*
+       * O cliente acabou de ser criado pela API.
+       * Guardamos a referência apenas para o fluxo atual.
+       */
+      clienteExistente =
+        respostaCliente.cliente ||
+        (respostaCliente.data && respostaCliente.data.cliente) ||
+        null;
+
+      console.log(
+        "Novo cliente criado:",
+        clienteExistente
+      );
+    }
+
+    /*
+     * ============================================================
+     * CADASTRO DOS PETS
+     * ============================================================
+     *
+     * IMPORTANTE:
+     * Nesta etapa ainda mantemos o comportamento atual.
+     * Os pets continuam sendo armazenados no localStorage.
+     *
+     * A migração de PETS será feita posteriormente.
+     */
+
     pets.push({
       dono,
       pet,
@@ -432,7 +498,24 @@ async function cadastrarPet() {
 
     localStorage.setItem("pets", JSON.stringify(pets));
 
-    toast("Cliente e pet(s) cadastrados com sucesso!", "success");
+    /*
+     * ============================================================
+     * SUCESSO
+     * ============================================================
+     */
+
+    toast(
+      clienteExistente
+        ? "Cliente existente reutilizado e pet(s) cadastrados com sucesso!"
+        : "Cliente e pet(s) cadastrados com sucesso!",
+      "success"
+    );
+
+    /*
+     * ============================================================
+     * LIMPA O FORMULÁRIO
+     * ============================================================
+     */
 
     document.getElementById("nomeDono").value = "";
     document.getElementById("nomePet").value = "";
@@ -445,14 +528,23 @@ async function cadastrarPet() {
       document.getElementById("nomePet2").value = "";
       document.getElementById("tipoPet2").value = "";
       document.getElementById("raca2").value = "";
-      document.getElementById("adicionarSegundoPet").checked = false;
-      document.getElementById("segundoPetCampos").style.display = "none";
+
+      document.getElementById(
+        "adicionarSegundoPet"
+      ).checked = false;
+
+      document.getElementById(
+        "segundoPetCampos"
+      ).style.display = "none";
     }
 
     return true;
 
   } catch (erro) {
-    console.error("Erro ao cadastrar cliente:", erro);
+    console.error(
+      "Erro ao cadastrar cliente/pet:",
+      erro
+    );
 
     toast(
       erro && erro.message
